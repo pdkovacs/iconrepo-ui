@@ -1,0 +1,8 @@
+node_modules
+dist
+bundle.js
+bundle.js.map
+index.html
+/docker/dist/
+.task/
+.tasks.uptodate

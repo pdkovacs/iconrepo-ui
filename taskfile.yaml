@@ -1,0 +1,56 @@
+version: '3'
+
+env:
+  TARGETTING_MINIKUBE: '{{.TARGETING_MINIKUBE | default "yes"}}'
+  BACKEND_ACCESS_TYPE: '{{.BACKEND_ACCESS_TYPE | default "by-path"}}'
+
+tasks:
+  set-envs:
+    cmds:
+      - echo "export LOG_LEVEL=debug"
+      - echo "export APP_ENV=development"
+  clean:
+    cmds:
+      - rm dist/*
+  setup-npm:
+    cmds:
+      - mkdir -p .tasks.uptodate
+      - npm ci
+      - echo > .tasks.uptodate/npmci
+    sources:
+      - package-lock.json
+    generates:
+      - .tasks.uptodate/npmci
+  build:
+    cmds:
+      - task: setup-npm
+      - npm run dist
+    sources:
+      - src/**/*
+      - package-lock.json
+      - .tasks.uptodate/npmci
+      - taskfile.yaml
+    generates:
+      - dist/bundle.js
+      - dist/index.html
+  docker:
+    cmds:
+      - task: build
+      - |
+        if [[ "{{.TARGETTING_MINIKUBE}}" = "yes" ]];
+        then
+          echo "Targeting minikube..."
+          eval $(minikube -p minikube docker-env)
+        fi
+        cp dist/* deploy/docker/
+        docker build -t iconrepo-client:latest deploy/docker/
+  k8s:
+    cmds:
+      - task: docker
+      - |
+        set -x
+        kubectl create configmap iconrepo-client \
+          --from-file=client-config.json=deploy/backend-access/${BACKEND_ACCESS_TYPE}.json \
+          --dry-run=client -o yaml | \
+        kubectl apply -f -
+      - kubectl apply -f deploy/k8s/client.yaml
