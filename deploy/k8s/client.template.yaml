@@ -35,7 +35,7 @@ spec:
         app: iconrepo-client
     spec:
       containers:
-      - image: docker.io/nightmanager/iconrepo-client:latest
+      - image: $ICONEPO_CLIENT_IMAGE
         imagePullPolicy: Always
         name: iconrepo-client
         ports:
@@ -67,5 +67,4 @@ spec:
           configMap:
             name: iconrepo-client
         - name: client-config
-          
 

@@ -1,7 +1,8 @@
 version: '3'
 
-env:
-  TARGETTING_MINIKUBE: '{{.TARGETING_MINIKUBE | default "yes"}}'
+vars:
+  APP_VERSION: '{{.APP_VERSION | default "latest" }}'
+  DOCKER_REPOSITORY_PREFIX: '{{.DOCKER_REPOSITORY_PREFIX | default "docker.io/nightmanager"}}'
   BACKEND_ACCESS_TYPE: '{{.BACKEND_ACCESS_TYPE | default "by-path"}}'
 
 tasks:
@@ -37,20 +38,30 @@ tasks:
     cmds:
       - task: build
       - |
-        if [[ "{{.TARGETTING_MINIKUBE}}" = "yes" ]];
+        if [[ "{{.DOCKER_REPOSITORY_PREFIX}}" = "minikube" ]];
         then
           echo "Targeting minikube..."
           eval $(minikube -p minikube docker-env)
         fi
+
         cp dist/* deploy/docker/
-        docker build -t iconrepo-client:latest deploy/docker/
+        docker build -t iconrepo-client:{{.APP_VERSION}} deploy/docker/
+
+        if [[ "{{.DOCKER_REPOSITORY_PREFIX}}" != "minikube" ]];
+        then
+          docker tag iconrepo-client {{.DOCKER_REPOSITORY_PREFIX}}/iconrepo-client:{{.APP_VERSION}}
+          docker push {{.DOCKER_REPOSITORY_PREFIX}}/iconrepo-client:{{.APP_VERSION}}
+        fi
   k8s:
     cmds:
       - task: docker
       - |
         set -x
         kubectl create configmap iconrepo-client \
-          --from-file=client-config.json=deploy/backend-access/${BACKEND_ACCESS_TYPE}.json \
-          --dry-run=client -o yaml | \
-        kubectl apply -f -
-      - kubectl apply -f deploy/k8s/client.yaml
+            "--from-file=client-config.json=deploy/backend-access/{{.BACKEND_ACCESS_TYPE}}.json" \
+            --dry-run=client -o yaml | \
+          kubectl apply -f -
+        ICONEPO_CLIENT_IMAGE=iconrepo-client:{{.APP_VERSION}}
+        [ "{{.DOCKER_REPOSITORY_PREFIX}}" != "minikube" ] && export ICONEPO_CLIENT_IMAGE={{.DOCKER_REPOSITORY_PREFIX}}/$ICONEPO_CLIENT_IMAGE
+        envsubst < deploy/k8s/client.template.yaml > deploy/k8s/client.yaml
+        kubectl apply -f deploy/k8s/client.yaml

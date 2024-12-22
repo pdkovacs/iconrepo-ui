@@ -4,5 +4,6 @@ bundle.js
 bundle.js.map
 index.html
 /docker/dist/
+/deploy/k8s/client.yaml
 .task/
 .tasks.uptodate
